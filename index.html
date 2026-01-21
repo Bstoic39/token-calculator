@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Points → Tokens (Airdrop Estimator)</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body {
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        margin: 0;
+        padding: 24px;
+        display: grid;
+        place-items: center;
+        background: Canvas;
+        color: CanvasText;
+      }
+      .card {
+        width: min(860px, 100%);
+        border: 1px solid color-mix(in oklab, CanvasText 18%, Canvas);
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 10px 30px color-mix(in oklab, CanvasText 12%, transparent);
+      }
+      h1 { margin: 0 0 8px; font-size: 20px; }
+      .sub { margin: 0 0 18px; opacity: .8; line-height: 1.4; }
+      .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; }
+      .field { grid-column: span 12; }
+      @media (min-width: 780px) {
+        .field.points { grid-column: span 6; }
+        .field.price  { grid-column: span 6; }
+      }
+      label { display: block; font-size: 12px; opacity: .85; margin: 0 0 6px; }
+      input[type="number"], input[type="text"] {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid color-mix(in oklab, CanvasText 18%, Canvas);
+        background: color-mix(in oklab, Canvas 92%, CanvasText 8%);
+        color: CanvasText;
+        outline: none;
+      }
+      input[type="number"]:focus, input[type="text"]:focus {
+        border-color: color-mix(in oklab, CanvasText 35%, Canvas);
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .pill {
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid color-mix(in oklab, CanvasText 18%, Canvas);
+        background: color-mix(in oklab, Canvas 92%, CanvasText 8%);
+        cursor: pointer;
+        user-select: none;
+        font-size: 12px;
+      }
+      .pill[aria-pressed="true"] {
+        border-color: color-mix(in oklab, CanvasText 40%, Canvas);
+        background: color-mix(in oklab, Canvas 82%, CanvasText 18%);
+      }
+      .muted { opacity: .75; font-size: 12px; }
+      .results {
+        margin-top: 16px;
+        padding: 14px;
+        border-radius: 14px;
+        border: 1px solid color-mix(in oklab, CanvasText 18%, Canvas);
+        background: color-mix(in oklab, Canvas 94%, CanvasText 6%);
+      }
+      .kpi {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+      @media (min-width: 780px) {
+        .kpi { grid-template-columns: repeat(3, 1fr); }
+      }
+      .kpi > div {
+        padding: 12px;
+        border-radius: 14px;
+        border: 1px solid color-mix(in oklab, CanvasText 14%, Canvas);
+        background: color-mix(in oklab, Canvas 96%, CanvasText 4%);
+      }
+      .kpi .label { font-size: 12px; opacity: .8; margin-bottom: 4px; }
+      .kpi .value { font-size: 18px; font-weight: 700; }
+      details { margin-top: 12px; }
+      summary { cursor: pointer; }
+      .warn {
+        margin-top: 16px;
+        padding: 12px;
+        border-radius: 14px;
+        border: 1px dashed color-mix(in oklab, CanvasText 28%, Canvas);
+        background: color-mix(in oklab, Canvas 96%, CanvasText 4%);
+        font-size: 12px;
+        line-height: 1.4;
+        opacity: .9;
+      }
+      .footer {
+        margin-top: 10px;
+        font-size: 12px;
+        opacity: .7;
+      }
+      .range-wrap {
+        display: grid;
+        gap: 8px;
+      }
+      input[type="range"] { width: 100%; }
+      .split {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+      @media (min-width: 780px) {
+        .split { grid-template-columns: 1fr 200px; align-items: end; }
+      }
+      .right { text-align: right; }
+      .error {
+        margin-top: 10px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid color-mix(in oklab, red 35%, Canvas);
+        background: color-mix(in oklab, red 10%, Canvas);
+        font-size: 12px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <main class="card">
+      <h1>Points → Tokens (Airdrop Estimator)</h1>
+      <p class="sub">
+        Enter your RP and/or XP points to estimate token allocation and estimated USD value at a given token price.
+      </p>
+
+      <div class="grid">
+        <div class="field points">
+          <label>Point types</label>
+          <div class="row" role="group" aria-label="Point type toggles">
+            <button class="pill" id="toggleRP" type="button" aria-pressed="true">RP</button>
+            <button class="pill" id="toggleXP" type="button" aria-pressed="true">XP</button>
+            <span class="muted">Enter either or both.</span>
+          </div>
+        </div>
+
+        <div class="field price">
+          <label>Token price (USD) — 3 decimals</label>
+          <div class="split">
+            <div class="range-wrap">
+              <input
+                id="priceRange"
+                type="range"
+                min="0.001"
+                max="10"
+                step="0.001"
+                value="0.100"
+                aria-label="Token price slider"
+              />
+              <div class="row" style="justify-content: space-between;">
+                <span class="muted">$0.001</span>
+                <span class="muted">$10.000</span>
+              </div>
+            </div>
+            <div>
+              <input
+                id="priceInput"
+                type="number"
+                inputmode="decimal"
+                min="0.001"
+                max="10"
+                step="0.001"
+                value="0.100"
+                aria-label="Token price numeric input"
+              />
+              <div class="muted right" id="priceDisplay">$0.100</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="field points" id="rpField">
+          <label>RP (Reputation Points)</label>
+          <input
+            id="rpInput"
+            type="number"
+            inputmode="decimal"
+            min="0"
+            step="0.01"
+            placeholder="e.g., 1250"
+          />
+          <div class="muted">Demo ratio: <strong>2 RP = 1 token</strong></div>
+        </div>
+
+        <div class="field points" id="xpField">
+          <label>XP (Experience Points)</label>
+          <input
+            id="xpInput"
+            type="number"
+            inputmode="decimal"
+            min="0"
+            step="0.01"
+            placeholder="e.g., 5000"
+          />
+          <div class="muted">Demo ratio: <strong>10 XP = 1 token</strong></div>
+        </div>
+      </div>
+
+      <div id="errorBox" class="error" style="display:none;"></div>
+
+      <section class="results" aria-live="polite">
+        <div class="kpi">
+          <div>
+            <div class="label">Tokens from RP</div>
+            <div class="value" id="tokensRP">0</div>
+          </div>
+          <div>
+            <div class="label">Tokens from XP</div>
+            <div class="value" id="tokensXP">0</div>
+          </div>
+          <div>
+            <div class="label">Total tokens</div>
+            <div class="value" id="tokensTotal">0</div>
+          </div>
+        </div>
+
+        <div style="margin-top: 12px;" class="kpi">
+          <div style="grid-column: 1 / -1;">
+            <div class="label">Estimated USD value (floored)</div>
+            <div class="value" id="usdValue">$0.00</div>
+            <div class="muted" id="usdValueNote">Based on token price $0.100</div>
+          </div>
+        </div>
+
+        <details>
+          <summary>Show calculation details</summary>
+          <div style="margin-top: 10px; font-size: 12px; opacity: .85; line-height: 1.5;">
+            <div id="mathRP">RP tokens = RP ÷ 2</div>
+            <div id="mathXP">XP tokens = XP ÷ 10</div>
+            <div id="mathValue">USD value = total tokens × token price (floored to cents)</div>
+          </div>
+        </details>
+      </section>
+
+      <div class="warn">
+        <strong>Disclaimer:</strong> This tool provides an <em>estimate only</em>. Demo conversion ratios are hardcoded for internal testing
+        and may change before the actual airdrop. Token price is user-provided and does not reflect market price. Final allocations,
+        rounding rules, eligibility, and distribution mechanics are subject to the project’s official terms.
+      </div>
+
+      <div class="footer">Internal demo • Static GitHub Pages compatible</div>
+    </main>
+
+    <script>
+      // Demo hardcoded ratios:
+      // RP: 2 RP = 1 token => tokens = RP / 2
+      // XP: 10 XP = 1 token => tokens = XP / 10
+
+      const els = {
+        toggleRP: document.getElementById("toggleRP"),
+        toggleXP: document.getElementById("toggleXP"),
+        rpField: document.getElementById("rpField"),
+        xpField: document.getElementById("xpField"),
+        rpInput: document.getElementById("rpInput"),
+        xpInput: document.getElementById("xpInput"),
+        priceRange: document.getElementById("priceRange"),
+        priceInput: document.getElementById("priceInput"),
+        priceDisplay: document.getElementById("priceDisplay"),
+        tokensRP: document.getElementById("tokensRP"),
+        tokensXP: document.getElementById("tokensXP"),
+        tokensTotal: document.getElementById("tokensTotal"),
+        usdValue: document.getElementById("usdValue"),
+        usdValueNote: document.getElementById("usdValueNote"),
+        mathRP: document.getElementById("mathRP"),
+        mathXP: document.getElementById("mathXP"),
+        mathValue: document.getElementById("mathValue"),
+        errorBox: document.getElementById("errorBox"),
+      };
+
+      const state = {
+        showRP: true,
+        showXP: true,
+        // IMPORTANT: RP/XP inputs accept up to 2 decimals.
+        // If you want to enforce integers only, change step to "1" in inputs,
+        // and replace normalizePoints() to return Math.floor(v).
+      };
+
+      function clamp(n, min, max) {
+        return Math.min(max, Math.max(min, n));
+      }
+
+      function toNumber(v) {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : 0;
+      }
+
+      function normalizePoints(v) {
+        // Accept up to 2 decimals; normalize to 2 decimals.
+        // (If you want integers only, return Math.floor(v).)
+        const n = clamp(toNumber(v), 0, 1e15);
+        return Math.round(n * 100) / 100;
+      }
+
+      function normalizePrice(v) {
+        // 3 decimals, clamp to slider range.
+        const n = clamp(toNumber(v), 0.001, 10);
+        return Math.round(n * 1000) / 1000;
+      }
+
+      function formatUpTo8(n) {
+        // Round for display up to 8 decimals, then trim trailing zeros.
+        const r = Math.round(n * 1e8) / 1e8;
+        let s = r.toFixed(8);
+        s = s.replace(/\.?0+$/, ""); // trim trailing zeros and trailing dot
+        return s === "-0" ? "0" : s;
+      }
+
+      function floorToCents(n) {
+        // Round estimated value DOWN to 2 decimals.
+        return Math.floor(n * 100) / 100;
+      }
+
+      function showError(msg) {
+        if (!msg) {
+          els.errorBox.style.display = "none";
+          els.errorBox.textContent = "";
+          return;
+        }
+        els.errorBox.style.display = "block";
+        els.errorBox.textContent = msg;
+      }
+
+      function syncPrice(from) {
+        // from: "range" or "input"
+        const raw = from === "range" ? els.priceRange.value : els.priceInput.value;
+        const p = normalizePrice(raw);
+
+        // Keep both controls aligned
+        els.priceRange.value = String(p);
+        els.priceInput.value = p.toFixed(3);
+        els.priceDisplay.textContent = `$${p.toFixed(3)}`;
+
+        return p;
+      }
+
+      function updateVisibility() {
+        els.toggleRP.setAttribute("aria-pressed", String(state.showRP));
+        els.toggleXP.setAttribute("aria-pressed", String(state.showXP));
+
+        els.rpField.style.display = state.showRP ? "block" : "none";
+        els.xpField.style.display = state.showXP ? "block" : "none";
+
+        // Clear hidden inputs so totals don’t surprise users
+        if (!state.showRP) els.rpInput.value = "";
+        if (!state.showXP) els.xpInput.value = "";
+
+        compute();
+      }
+
+      function compute() {
+        showError("");
+
+        const price = syncPrice("input"); // ensures we always have a clean 3dp value
+
+        const rp = state.showRP ? normalizePoints(els.rpInput.value) : 0;
+        const xp = state.showXP ? normalizePoints(els.xpInput.value) : 0;
+
+        // Basic validation: require at least one input when both toggles are on/off states allow.
+        if (!state.showRP && !state.showXP) {
+          showError("Enable RP and/or XP to estimate tokens.");
+        }
+
+        const tokensFromRP = rp / 2;
+        const tokensFromXP = xp / 10;
+        const totalTokens = tokensFromRP + tokensFromXP;
+
+        const estimated = floorToCents(totalTokens * price);
+
+        els.tokensRP.textContent = formatUpTo8(tokensFromRP);
+        els.tokensXP.textContent = formatUpTo8(tokensFromXP);
+        els.tokensTotal.textContent = formatUpTo8(totalTokens);
+
+        els.usdValue.textContent = `$${estimated.toFixed(2)}`;
+        els.usdValueNote.textContent = `Based on token price $${price.toFixed(3)}`;
+
+        // Detail strings
+        els.mathRP.textContent = `RP tokens = ${state.showRP ? rp : 0} ÷ 2 = ${formatUpTo8(tokensFromRP)}`;
+        els.mathXP.textContent = `XP tokens = ${state.showXP ? xp : 0} ÷ 10 = ${formatUpTo8(tokensFromXP)}`;
+        els.mathValue.textContent = `USD value = ${formatUpTo8(totalTokens)} × $${price.toFixed(3)} = $${estimated.toFixed(2)} (floored)`;
+      }
+
+      // Events
+      els.toggleRP.addEventListener("click", () => {
+        state.showRP = !state.showRP;
+        updateVisibility();
+      });
+
+      els.toggleXP.addEventListener("click", () => {
+        state.showXP = !state.showXP;
+        updateVisibility();
+      });
+
+      els.rpInput.addEventListener("input", compute);
+      els.xpInput.addEventListener("input", compute);
+
+      els.priceRange.addEventListener("input", () => {
+        const p = normalizePrice(els.priceRange.value);
+        els.priceInput.value = p.toFixed(3);
+        els.priceDisplay.textContent = `$${p.toFixed(3)}`;
+        compute();
+      });
+
+      els.priceInput.addEventListener("input", () => {
+        const p = normalizePrice(els.priceInput.value);
+        els.priceRange.value = String(p);
+        els.priceDisplay.textContent = `$${p.toFixed(3)}`;
+        compute();
+      });
+
+      // Initialize
+      els.priceInput.value = normalizePrice(els.priceInput.value).toFixed(3);
+      els.priceRange.value = els.priceInput.value;
+      els.priceDisplay.textContent = `$${Number(els.priceInput.value).toFixed(3)}`;
+      updateVisibility();
+      compute();
+    </script>
+  </body>
+</html>
